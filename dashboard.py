@@ -29,15 +29,25 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=politics+Nigeria"
 ]
 
-def fetch_news(limit_per_feed=5):
+from datetime import datetime, timedelta
+
+def fetch_news(limit_per_feed=10):
     news = []
+    one_week_ago = datetime.now() - timedelta(days=7)
 
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries[:limit_per_feed]:
+            # Convert published date
+            try:
+                published = datetime(*entry.published_parsed[:6])
+            except:
+                published = datetime.now()  # fallback
+            if published < one_week_ago:
+                continue  # skip old news
             news.append({
                 "Title": entry.title,
-                "Published": entry.get("published", "N/A"),
+                "Published": published.strftime("%Y-%m-%d %H:%M"),
                 "Link": entry.link
             })
 
