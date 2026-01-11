@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import feedparser
+import requests
 from datetime import datetime, timedelta
 
 # -----------------------
@@ -14,7 +15,7 @@ RSS_FEEDS = [
 ]
 
 # -----------------------
-# Function: Fetch crypto news (last 7 days)
+# Fetch crypto/meme coin news
 # -----------------------
 def fetch_crypto_news(limit_per_feed=10, days=7):
     news = []
@@ -39,46 +40,57 @@ def fetch_crypto_news(limit_per_feed=10, days=7):
     return pd.DataFrame(news)
 
 # -----------------------
-# Function: Dummy crypto/meme coin market opportunities
+# Fetch real-time crypto prices from CoinGecko
 # -----------------------
-def fetch_markets():
-    # Replace with live API later if available
-    markets = [
-        {"Market":"Bitcoin > $100k", "Market Probability":0.33, "URL":"https://coinmarketcap.com"},
-        {"Market":"Shiba Inu next 30 days pump", "Market Probability":0.42, "URL":"https://coingecko.com"},
-        {"Market":"Dogecoin > $0.10", "Market Probability":0.55, "URL":"https://coinmarketcap.com"},
-        {"Market":"Ethereum > $5000", "Market Probability":0.47, "URL":"https://coingecko.com"},
-        {"Market":"Meme coin new trending token", "Market Probability":0.38, "URL":"https://coinmarketcap.com"}
-    ]
-    return pd.DataFrame(markets)
+def fetch_crypto_markets():
+    # Coins we want
+    coins = ["bitcoin","dogecoin","shiba-inu","ethereum"]
+    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={','.join(coins)}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as e:
+        st.error(f"Failed to fetch crypto market data: {e}")
+        return pd.DataFrame(columns=["Market","Current Price","24h Change (%)","Signal","URL"])
 
-# -----------------------
-# Function: Generate simple BUY/SELL/HOLD signals
-# -----------------------
-def generate_signal(prob):
-    if prob >= 0.6:
-        return "BUY"
-    elif prob <= 0.4:
-        return "SELL"
-    else:
-        return "HOLD"
+    markets = []
+    for coin in data:
+        price = coin.get("current_price")
+        change_24h = coin.get("price_change_percentage_24h", 0)
+        name = coin.get("name")
+        url = f"https://www.coingecko.com/en/coins/{coin.get('id')}"
+
+        # Simple signal: if price up > 1% in 24h -> BUY, < -1% -> SELL, else HOLD
+        if change_24h > 1:
+            signal = "BUY"
+        elif change_24h < -1:
+            signal = "SELL"
+        else:
+            signal = "HOLD"
+
+        markets.append({
+            "Market": name,
+            "Current Price": f"${price:,.2f}",
+            "24h Change (%)": f"{change_24h:.2f}%",
+            "Signal": signal,
+            "URL": url
+        })
+
+    return pd.DataFrame(markets)
 
 # -----------------------
 # Streamlit Dashboard
 # -----------------------
 st.set_page_config(page_title="Crypto & Meme Coin Dashboard", layout="wide")
-st.title("📈 Crypto & Meme Coin Opportunity Dashboard")
-
-# Auto-refresh every 5 minutes
-st.experimental_singleton.clear()
-st_autorefresh = st.experimental_rerun if st.button("Refresh Now") else None
+st.title("📈 Crypto & Meme Coin Live Dashboard")
 
 # -----------------------
 # Market Opportunities
 # -----------------------
-with st.spinner("Fetching crypto/meme coin markets..."):
-    markets_df = fetch_markets()
-    markets_df["Signal"] = markets_df["Market Probability"].apply(generate_signal)
+with st.spinner("Fetching live crypto markets..."):
+    markets_df = fetch_crypto_markets()
 
 st.subheader("🔥 Market Opportunities")
 st.dataframe(markets_df)
@@ -96,4 +108,4 @@ for idx, row in news_df.iterrows():
 # -----------------------
 # Footer
 # -----------------------
-st.write("Dashboard auto-refreshes every 5 minutes. Stay updated on crypto and meme coin trends!")
+st.write("Dashboard updates automatically when refreshed. Prices & news are live!")
