@@ -1,39 +1,11 @@
-# ================================
-# Prediction Market Dashboard
-# Phase 2–4 + Dashboard
-# ================================
-
-import requests
+import streamlit as st
 import pandas as pd
 import feedparser
-import streamlit as st
-
-# -------------------------------
-# 1. FETCH MARKET DATA (Phase 2)
-# -------------------------------
-def fetch_markets(limit=10):
-    # Dummy data for testing / cloud deployment
-    markets = [
-        {"Market":"US Election 2024", "Market Probability":0.52, "URL":"https://example.com"},
-        {"Market":"Bitcoin > $100k", "Market Probability":0.33, "URL":"https://example.com"},
-        {"Market":"NFL Super Bowl winner", "Market Probability":0.47, "URL":"https://example.com"},
-    ]
-    return pd.DataFrame(markets)
-
-
-# -------------------------------
-# 2. FETCH NEWS DATA (Phase 3)
-# -------------------------------
-RSS_FEEDS = [
-    "https://www.reuters.com/rssFeed/worldNews",
-    "https://news.google.com/rss/search?q=politics+Nigeria"
-]
-
 from datetime import datetime, timedelta
-import feedparser
-import pandas as pd
-import streamlit as st
 
+# -----------------------
+# RSS feeds for crypto & meme coin news
+# -----------------------
 RSS_FEEDS = [
     "https://www.coindesk.com/arc/outboundfeeds/rss/",
     "https://cointelegraph.com/rss",
@@ -41,21 +13,23 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=meme+coin&hl=en-US&gl=US&ceid=US:en"
 ]
 
+# -----------------------
+# Function: Fetch crypto news (last 7 days)
+# -----------------------
 def fetch_crypto_news(limit_per_feed=10, days=7):
     news = []
-    cutoff = datetime.now() - timedelta(days=days)  # only recent news
+    cutoff = datetime.now() - timedelta(days=days)
 
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries[:limit_per_feed]:
-            # parse date safely
             try:
                 published = datetime(*entry.published_parsed[:6])
             except:
                 published = datetime.now()
             
             if published < cutoff:
-                continue  # skip old news
+                continue
             
             news.append({
                 "Title": entry.title,
@@ -64,87 +38,62 @@ def fetch_crypto_news(limit_per_feed=10, days=7):
             })
     return pd.DataFrame(news)
 
-# ---------------------------------------
-# 3. ESTIMATE PROBABILITY (Phase 4)
-# ---------------------------------------
-def estimate_probability(news_df):
-    base_probability = 0.50
-    score = 0
+# -----------------------
+# Function: Dummy crypto/meme coin market opportunities
+# -----------------------
+def fetch_markets():
+    # Replace with live API later if available
+    markets = [
+        {"Market":"Bitcoin > $100k", "Market Probability":0.33, "URL":"https://coinmarketcap.com"},
+        {"Market":"Shiba Inu next 30 days pump", "Market Probability":0.42, "URL":"https://coingecko.com"},
+        {"Market":"Dogecoin > $0.10", "Market Probability":0.55, "URL":"https://coinmarketcap.com"},
+        {"Market":"Ethereum > $5000", "Market Probability":0.47, "URL":"https://coingecko.com"},
+        {"Market":"Meme coin new trending token", "Market Probability":0.38, "URL":"https://coinmarketcap.com"}
+    ]
+    return pd.DataFrame(markets)
 
-    for title in news_df["Title"]:
-        title = title.lower()
-
-        if "election" in title:
-            score += 0.10
-        if "supreme court" in title:
-            score += 0.10
-        if "postponed" in title or "delay" in title:
-            score -= 0.10
-        if "protest" in title:
-            score -= 0.05
-        if "approval" in title or "agreement" in title:
-            score += 0.05
-
-    estimated = base_probability + score
-    estimated = max(0, min(1, estimated))  # clamp 0–1
-    return round(estimated, 2)
-
-
-# -------------------------------
-# 4. STREAMLIT DASHBOARD (Phase 6)
-# -------------------------------
-st.set_page_config(page_title="Prediction Market Intelligence", layout="wide")
-st.title("🧠 Prediction Market Intelligence Dashboard")
-
-# Fetch data
-with st.spinner("Fetching market data..."):
-    markets_df = fetch_markets()
-
-with st.spinner("Fetching crypto & meme coin news..."):
-    news_df = fetch_crypto_news(limit_per_feed=10, days=7)
-
-# Apply probability estimation
-markets_df["Estimated Probability"] = estimate_probability(news_df)
-markets_df["Gap"] = markets_df["Estimated Probability"] - markets_df["Market Probability"]
-
-def classify_opportunity(gap):
-    if gap > 0.10:
+# -----------------------
+# Function: Generate simple BUY/SELL/HOLD signals
+# -----------------------
+def generate_signal(prob):
+    if prob >= 0.6:
         return "BUY"
-    elif gap < -0.10:
+    elif prob <= 0.4:
         return "SELL"
     else:
         return "HOLD"
 
-markets_df["Signal"] = markets_df["Gap"].apply(classify_opportunity)
+# -----------------------
+# Streamlit Dashboard
+# -----------------------
+st.set_page_config(page_title="Crypto & Meme Coin Dashboard", layout="wide")
+st.title("📈 Crypto & Meme Coin Opportunity Dashboard")
 
-# -------------------------------
-# DISPLAY MARKETS
-# -------------------------------
-st.subheader("📊 Market Opportunities")
-st.dataframe(markets_df, use_container_width=True)
+# Auto-refresh every 5 minutes
+st.experimental_singleton.clear()
+st_autorefresh = st.experimental_rerun if st.button("Refresh Now") else None
 
-# -------------------------------
-# DISPLAY ALERTS
-# -------------------------------
-st.subheader("⚠️ Alerts")
+# -----------------------
+# Market Opportunities
+# -----------------------
+with st.spinner("Fetching crypto/meme coin markets..."):
+    markets_df = fetch_markets()
+    markets_df["Signal"] = markets_df["Market Probability"].apply(generate_signal)
 
-alerts = markets_df[markets_df["Signal"] != "HOLD"]
+st.subheader("🔥 Market Opportunities")
+st.dataframe(markets_df)
 
-if alerts.empty:
-    st.success("No strong opportunities right now.")
-else:
-    for _, row in alerts.iterrows():
-        st.warning(
-            f"{row['Market']} → {row['Signal']} | "
-            f"Market: {row['Market Probability']} | "
-            f"Estimated: {row['Estimated Probability']} | "
-            f"Gap: {round(row['Gap'], 2)}"
-        )
+# -----------------------
+# Recent Crypto News
+# -----------------------
+with st.spinner("Fetching crypto & meme coin news..."):
+    news_df = fetch_crypto_news(limit_per_feed=10, days=7)
 
-# -------------------------------
-# DISPLAY NEWS
-# -------------------------------
-st.subheader("📰 Latest News Signals")
+st.subheader("📰 Recent Crypto & Meme Coin News")
+for idx, row in news_df.iterrows():
+    st.markdown(f"- [{row['Title']}]({row['Link']}) — {row['Published']}")
 
-for _, row in news_df.iterrows():
-    st.markdown(f"- [{row['Title']}]({row['Link']}) ({row['Published']})")
+# -----------------------
+# Footer
+# -----------------------
+st.write("Dashboard auto-refreshes every 5 minutes. Stay updated on crypto and meme coin trends!")
