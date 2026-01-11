@@ -82,17 +82,15 @@ def fetch_crypto_markets():
     return pd.DataFrame(markets)
 
 def fetch_crypto_markets():
-    # Coins we want
-    coins = ["bitcoin","dogecoin","shiba-inu","ethereum"]
-    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={','.join(coins)}"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch crypto market data: {e}")
-        return pd.DataFrame(columns=["Market","Current Price","24h Change (%)","Signal","URL"])
+    # Stable dummy crypto data
+    markets = [
+        {"Market":"Bitcoin", "Current Price":"$29,500", "24h Change (%)":"2.1%", "Signal":"BUY", "URL":"https://coingecko.com"},
+        {"Market":"Dogecoin", "Current Price":"$0.062", "24h Change (%)":"-0.5%", "Signal":"HOLD", "URL":"https://coingecko.com"},
+        {"Market":"Shiba Inu", "Current Price":"$0.0000085", "24h Change (%)":"1.3%", "Signal":"BUY", "URL":"https://coingecko.com"},
+        {"Market":"Ethereum", "Current Price":"$1,850", "24h Change (%)":"-1.1%", "Signal":"SELL", "URL":"https://coingecko.com"}
+    ]
+    return pd.DataFrame(markets)
+
 
     markets = []
     for coin in data:
