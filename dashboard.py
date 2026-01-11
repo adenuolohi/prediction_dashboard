@@ -13,8 +13,17 @@ import streamlit as st
 # -------------------------------
 def fetch_markets(limit=10):
     url = f"https://api.polymarket.com/v1/contracts?limit={limit}"
-    response = requests.get(url)
-    data = response.json()
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()  # will raise HTTPError for bad responses
+        data = response.json()       # parse JSON
+    except requests.exceptions.RequestException as e:
+        st.error(f"Failed to fetch market data: {e}")
+        return pd.DataFrame(columns=["Market","Market Probability","URL"])
+    except ValueError:
+        st.error("Market API returned invalid JSON")
+        return pd.DataFrame(columns=["Market","Market Probability","URL"])
 
     markets = []
     for m in data.get("contracts", []):
@@ -23,9 +32,7 @@ def fetch_markets(limit=10):
             "Market Probability": m.get("probability"),
             "URL": m.get("url")
         })
-
     return pd.DataFrame(markets)
-
 
 # -------------------------------
 # 2. FETCH NEWS DATA (Phase 3)
