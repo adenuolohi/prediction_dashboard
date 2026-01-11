@@ -42,6 +42,45 @@ def fetch_crypto_news(limit_per_feed=10, days=7):
 # -----------------------
 # Fetch real-time crypto prices from CoinGecko
 # -----------------------
+
+@st.cache_data(ttl=300)  # cache for 5 minutes
+def fetch_crypto_markets():
+    coins = ["bitcoin","dogecoin","shiba-inu","ethereum"]
+    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={','.join(coins)}"
+    
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as e:
+        st.error(f"Failed to fetch crypto market data: {e}")
+        return pd.DataFrame(columns=["Market","Current Price","24h Change (%)","Signal","URL"])
+
+    markets = []
+    for coin in data:
+        price = coin.get("current_price")
+        change_24h = coin.get("price_change_percentage_24h", 0)
+        name = coin.get("name")
+        url = f"https://www.coingecko.com/en/coins/{coin.get('id')}"
+
+        # Simple signal logic
+        if change_24h > 1:
+            signal = "BUY"
+        elif change_24h < -1:
+            signal = "SELL"
+        else:
+            signal = "HOLD"
+
+        markets.append({
+            "Market": name,
+            "Current Price": f"${price:,.2f}",
+            "24h Change (%)": f"{change_24h:.2f}%",
+            "Signal": signal,
+            "URL": url
+        })
+
+    return pd.DataFrame(markets)
+
 def fetch_crypto_markets():
     # Coins we want
     coins = ["bitcoin","dogecoin","shiba-inu","ethereum"]
