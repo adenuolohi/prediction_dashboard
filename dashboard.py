@@ -30,29 +30,39 @@ RSS_FEEDS = [
 ]
 
 from datetime import datetime, timedelta
+import feedparser
+import pandas as pd
+import streamlit as st
 
-def fetch_news(limit_per_feed=10):
+RSS_FEEDS = [
+    "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    "https://cointelegraph.com/rss",
+    "https://cryptoslate.com/feed/",
+    "https://news.google.com/rss/search?q=meme+coin&hl=en-US&gl=US&ceid=US:en"
+]
+
+def fetch_crypto_news(limit_per_feed=10, days=7):
     news = []
-    one_week_ago = datetime.now() - timedelta(days=7)
+    cutoff = datetime.now() - timedelta(days=days)  # only recent news
 
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries[:limit_per_feed]:
-            # Convert published date
+            # parse date safely
             try:
                 published = datetime(*entry.published_parsed[:6])
             except:
-                published = datetime.now()  # fallback
-            if published < one_week_ago:
+                published = datetime.now()
+            
+            if published < cutoff:
                 continue  # skip old news
+            
             news.append({
                 "Title": entry.title,
                 "Published": published.strftime("%Y-%m-%d %H:%M"),
                 "Link": entry.link
             })
-
     return pd.DataFrame(news)
-
 
 # ---------------------------------------
 # 3. ESTIMATE PROBABILITY (Phase 4)
@@ -90,8 +100,8 @@ st.title("🧠 Prediction Market Intelligence Dashboard")
 with st.spinner("Fetching market data..."):
     markets_df = fetch_markets()
 
-with st.spinner("Fetching news..."):
-    news_df = fetch_news()
+with st.spinner("Fetching crypto & meme coin news..."):
+    news_df = fetch_crypto_news(limit_per_feed=10, days=7)
 
 # Apply probability estimation
 markets_df["Estimated Probability"] = estimate_probability(news_df)
